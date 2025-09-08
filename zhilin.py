@@ -84,7 +84,7 @@ def get_predicted_score_per_task_id_e2e(condition=None, value=None, data=None):
     domain_average["judge_prompt"]= round(np.mean(judge_prompt_tokens))
     domain_average["judge_completion"]= round(np.mean(judge_completion_tokens))
 
-    return domain_average
+    return domain_average, task_id_to_scores
 
 
 def get_pass_at_k(score_list, k: int):
