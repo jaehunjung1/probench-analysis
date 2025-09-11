@@ -1,11 +1,15 @@
 import copy
+import random
 from collections import defaultdict
+from typing import List
 
 import ipdb
 import jsonlines
+import numpy as np
 from tabulate import tabulate
 
 from zhilin import get_predicted_score_per_task_id_e2e, get_std_at_k, get_pass_at_k
+from modules.optimal_allocation import get_optimal_num_response_allocation
 
 
 if __name__ == '__main__':
@@ -36,7 +40,7 @@ if __name__ == '__main__':
                 total_performance[key].append(batch_performance[key])
 
         for task_id, score in task_id_to_scores.items():
-            total_task_id_to_scores[task_id].append(score)
+            total_task_id_to_scores[int(task_id)].append(score)
 
     # # Aggregation over K
     # for K in K_list:
@@ -70,7 +74,61 @@ if __name__ == '__main__':
             "task_id": task_id,
             "p5": p5, "p25": p25, "p37_5": p37_5, "p50": p50, "p62_5": p62_5, "p75": p75, "p95": p95,
         })
-
     print(tabulate(quantile_results, headers="keys", floatfmt=".3f"))
+
+    task_id_list = sorted(list(total_task_id_to_scores.keys()))
+    task_var_list = [float(np.var(total_task_id_to_scores[task_id])) for task_id in task_id_list]
+
+    # compute performance variance with brute-force independent runs as estimation
+    runs_to_task_scores = np.zeros((16, len(task_id_list)))  # (16, 40)
+    for task_idx, task_id in enumerate(task_id_list):
+        runs_to_task_scores[:, task_idx] = total_task_id_to_scores[task_id]
+    overall_performance = np.mean(runs_to_task_scores, axis=1)  # (16, 1)
+    print(f"Brute-force std: {np.std(overall_performance)}")
+
+    # compute performance variance with uniform allocation
+    allocation = [4] * len(task_id_list)
+    runs_to_task_scores = np.zeros((1024, len(task_id_list)))  # (16, 40)
+    for run_idx in range(1024):
+        for task_idx, task_id in enumerate(task_id_list):
+            allocation_for_this_task = allocation[task_idx]
+            sampled_scores = random.sample(total_task_id_to_scores[task_id], allocation_for_this_task)
+            average_task_scores = np.mean(sampled_scores, axis=0)
+            runs_to_task_scores[run_idx, task_idx] = average_task_scores
+    overall_performance = np.mean(runs_to_task_scores, axis=1)  # (16, 1)
+    print(f"Uniform allocation std: {np.std(overall_performance)}")
+
+    # compute performance variance with optimal allocation
+    allocation, min_var = get_optimal_num_response_allocation(task_var_list, total_num_responses=160)
+    runs_to_task_scores = np.zeros((4096, len(task_id_list)))
+    for run_idx in range(4096):
+        for task_idx, task_id in enumerate(task_id_list):
+            allocation_for_this_task = allocation[task_idx]
+            sampled_scores = random.sample(total_task_id_to_scores[task_id], allocation_for_this_task)
+            average_task_scores = np.mean(sampled_scores, axis=0)
+            runs_to_task_scores[run_idx, task_idx] = average_task_scores
+    overall_performance = np.mean(runs_to_task_scores, axis=1)
+    print(f"Optimal allocation std: {np.std(overall_performance)}")
+
+    # compute performance variance with optimal allocation + outlier exclusion
+    allocation, min_var = get_optimal_num_response_allocation(task_var_list, total_num_responses=160)
+    runs_to_task_scores = np.zeros((4096, len(task_id_list)))
+    for run_idx in range(4096):
+        for task_idx, task_id in enumerate(task_id_list):
+            allocation_for_this_task = allocation[task_idx]
+            sampled_scores = random.sample(total_task_id_to_scores[task_id], allocation_for_this_task)
+
+            # exclude min / max
+            min_score, max_score = min(sampled_scores), max(sampled_scores)
+            if len([s for s in sampled_scores if min_score < s < max_score]) > 0:
+                sampled_scores = [s for s in sampled_scores if min_score < s < max_score]
+            average_task_scores = np.mean(sampled_scores, axis=0)
+            runs_to_task_scores[run_idx, task_idx] = average_task_scores
+    overall_performance = np.mean(runs_to_task_scores, axis=1)  # (16, 1)
+    print(f"Optimal allocation + Outlier exclusion std: {np.std(overall_performance)}")
+
+
+
+
     ipdb.set_trace()
     pass
