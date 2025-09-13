@@ -5,6 +5,7 @@ from pathlib import Path
 import ipdb
 import jsonlines
 import numpy as np
+from tqdm import tqdm
 
 from modules.optimal_allocation import get_optimal_num_response_allocation
 from zhilin import get_predicted_score_per_task_id_e2e
@@ -16,17 +17,24 @@ if __name__ == "__main__":
         "gemini-2.5-flash_reasoning_True": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
                                                 "gemini-2.5-flash_reasoning_True_files_1_web_0_seed_16_model_"
                                                 "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
-        "gemini-2.5-pro_reasoning_True": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
-                                              "gemini-2.5-pro_reasoning_True_files_1_web_0_seed_16_model_"
-                                              "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
-        "o3_reasoning_medium": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
-                                    "o3_reasoning_medium_files_1_web_0_seed_16_model_"
-                                    "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
-        "o4-mini_reasoning_medium": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
-                                         "o4-mini_reasoning_medium_files_1_web_0_seed_16_model_"
-                                         "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
+        # "gemini-2.5-pro_reasoning_True": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
+        #                                       "gemini-2.5-pro_reasoning_True_files_1_web_0_seed_16_model_"
+        #                                       "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
+        # "o3_reasoning_medium": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
+        #                             "o3_reasoning_medium_files_1_web_0_seed_16_model_"
+        #                             "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
+        # "o4-mini_reasoning_medium": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
+        #                                  "o4-mini_reasoning_medium_files_1_web_0_seed_16_model_"
+        #                                  "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
     }
-    total_num_responses = 160
+    population_performance_dict = {
+        "gemini-2.5-flash_reasoning_True": 0.576,
+        "gemini-2.5-pro_reasoning_True": 0.603,
+        "o3_reasoning_medium": 0.614,
+        "o4-mini_reasoning_medium": 0.582,
+    }
+
+    total_num_responses = 40
 
     # === aggregate data === #
     # {model_name: {task_id: [score0, ..., score15], ...}, ...}
@@ -62,59 +70,181 @@ if __name__ == "__main__":
     task_id_list = sorted(list(task_id_to_average_std.keys()))
     task_var_list = [float(task_id_to_average_std[task_id]) for task_id in task_id_list]
 
-    # # === compute performance with optimal allocation per model === #
-    # allocation, min_var = get_optimal_num_response_allocation(task_var_list, total_num_responses=total_num_responses)
+    # # === compute performance with dynamic allocation v2 === #
+    # add_ratio = 0.5  # ratio of samples to add generations at each round
+    # target_sample_sem = 0.02  # standard error of mean
+    # num_min_samples = 1
     # for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
     #     runs_to_task_scores = np.zeros((4096, len(task_id_list)))
-    #     for run_idx in range(4096):
+    #     runs_to_num_generated = np.zeros((4096,))
+    #     for run_idx in tqdm(range(4096), desc="Dynamic Allocation v2"):
+    #         num_samples_to_add_in_current_round = len(task_id_list)
+    #         samples_to_add = task_id_list
+    #         while num_samples_to_add_in_current_round % 2 == 0:
+    #             for task_id in enumerate(samples_to_add):
+    #                 task_idx = samples_to_add
+    #
+    #         run_num_generated = 0
     #         for task_idx, task_id in enumerate(task_id_list):
-    #             allocation_for_this_task = allocation[task_idx]
-    #             sampled_scores = random.sample(task_id_to_scores[task_id], allocation_for_this_task)
+    #             num_generated = 2
+    #             sampled_scores = random.sample(task_id_to_scores[task_id], 2)
+    #             while num_generated <= len(task_id_to_scores[task_id]):
+    #                 num_generated += num_min_samples
+    #                 sampled_scores += random.sample(task_id_to_scores[task_id], num_min_samples)
     #
-    #             average_task_scores = np.mean(sampled_scores, axis=0)
-    #             runs_to_task_scores[run_idx, task_idx] = average_task_scores
+    #                 sample_sem = np.std(sampled_scores) / np.sqrt(len(sampled_scores))
     #
-    #     overall_performance = np.mean(runs_to_task_scores, axis=1)
-    #     print(f"{model_name} - Optimal allocation (B={total_num_responses}) std: {np.std(overall_performance)}")
+    #                 if sample_sem <= target_sample_sem:
+    #                     break
+    #
+    #             # exclude min / max
+    #             if excluded_score := [s for s in sampled_scores if min(sampled_scores) < s < max(sampled_scores)]:
+    #                 sampled_scores = excluded_score
+    #             runs_to_task_scores[run_idx, task_idx] = np.mean(sampled_scores, axis=0)
+    #             run_num_generated += num_generated
+    #
+    #         runs_to_num_generated[run_idx] = run_num_generated
+    #
+    #     average_num_generated = np.mean(runs_to_num_generated)
+    #     overall_performance = np.mean(runs_to_task_scores, axis=1)  # (4096, 1)
+    #     overall_std = np.sqrt(
+    #         np.sum((overall_performance - population_performance_dict[model_name]) ** 2) / len(overall_performance))
+    #     print(f"{model_name} - Dynamic allocation v2 (B={average_num_generated} / target_sample_std: {target_sample_sem}) "
+    #           f"std: {np.std(overall_performance)}")
     #
     # print()
-    #
-    # # === compute performance with uniform allocation per model === #
-    # allocation = [int(total_num_responses / len(task_id_list))] * len(task_id_list)
-    # for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
-    #     runs_to_task_scores = np.zeros((4096, len(task_id_list)))
-    #     for run_idx in range(4096):
-    #         for task_idx, task_id in enumerate(task_id_list):
-    #             allocation_for_this_task = allocation[task_idx]
-    #             sampled_scores = random.sample(task_id_to_scores[task_id], allocation_for_this_task)
-    #
-    #             average_task_scores = np.mean(sampled_scores, axis=0)
-    #             runs_to_task_scores[run_idx, task_idx] = average_task_scores
-    #
-    #     overall_performance = np.mean(runs_to_task_scores, axis=1)
-    #     print(f"{model_name} - Uniform allocation (B={total_num_responses}) std: {np.std(overall_performance)}")
-    #
-    # print()
-    #
-    # # === compute std with brute-force independent runs as estimation === #
-    # for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
-    #     runs_to_task_scores = np.zeros((16, len(task_id_list)))  # (16, 40)
-    #     for task_idx, task_id in enumerate(task_id_list):
-    #         runs_to_task_scores[:, task_idx] = task_id_to_scores[task_id]
-    #
-    #     overall_performance = np.mean(runs_to_task_scores, axis=1)  # (16, 1)
-    #     print(f"{model_name} - Brute-force std: {np.std(overall_performance)}")
 
-    # === analyze which rubric got more allocation and less === #
+    # # === compute performance with dynamic allocation v1 === #
+    # target_sample_sem = 0.02  # standard error of mean
+    # num_min_samples = 2
+    # for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
+    #     runs_to_task_scores = np.zeros((4096, len(task_id_list)))
+    #     runs_to_num_generated = np.zeros((4096,))
+    #     for run_idx in tqdm(range(4096), desc="Dynamic Allocation v1"):
+    #         run_num_generated = 0
+    #         for task_idx, task_id in enumerate(task_id_list):
+    #             num_generated = 2
+    #             sampled_scores = random.sample(task_id_to_scores[task_id], 2)
+    #             while num_generated <= len(task_id_to_scores[task_id]):
+    #                 num_generated += num_min_samples
+    #                 sampled_scores += random.sample(task_id_to_scores[task_id], num_min_samples)
+    #
+    #                 sample_sem = np.std(sampled_scores) / np.sqrt(len(sampled_scores))
+    #
+    #                 if sample_sem <= target_sample_sem:
+    #                     break
+    #
+    #             # exclude min / max
+    #             if excluded_score := [s for s in sampled_scores if min(sampled_scores) < s < max(sampled_scores)]:
+    #                 sampled_scores = excluded_score
+    #             runs_to_task_scores[run_idx, task_idx] = np.mean(sampled_scores, axis=0)
+    #             run_num_generated += num_generated
+    #
+    #         runs_to_num_generated[run_idx] = run_num_generated
+    #
+    #     average_num_generated = np.mean(runs_to_num_generated)
+    #     overall_performance = np.mean(runs_to_task_scores, axis=1) # (4096, 1)
+    #     overall_std = np.sqrt(np.sum((overall_performance - population_performance_dict[model_name]) ** 2)  / len(overall_performance))
+    #     print(f"{model_name} - Dynamic allocation v1 (B={average_num_generated} / target_sample_std: {target_sample_sem}) "
+    #           f"std: {np.std(overall_performance)}")
+    #
+    # print()
+
+
+    # === compute performance with optimal allocation per model === #
     allocation, min_var = get_optimal_num_response_allocation(task_var_list, total_num_responses=total_num_responses)
-    task_id_to_allocation = {task_id: num_allocation for task_id, num_allocation in zip(task_id_list, allocation)}
-    with jsonlines.open("./data/probench_first_40_public_last_40_private.jsonl") as f:
-        rubric_samples = list(f)
-        rubrics_dict = {}  # task_id: rubric sample
-        num_rubrics_dict = {}  # task_id: number of rubrics
-        for rubric_sample in rubric_samples:
-            rubrics_dict[int(rubric_sample['task_id'])] = rubric_sample
-            num_rubrics_dict[int(rubric_sample['task_id'])] = len(rubric_sample['rubrics']['rubric_json'])
+    for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
+        runs_to_task_scores = np.zeros((4096, len(task_id_list)))
+        for run_idx in range(4096):
+            for task_idx, task_id in enumerate(task_id_list):
+                allocation_for_this_task = allocation[task_idx]
+                sampled_scores = [random.choice(task_id_to_scores[task_id]) for _ in range(allocation_for_this_task)]
+
+                average_task_scores = np.mean(sampled_scores, axis=0)
+                runs_to_task_scores[run_idx, task_idx] = average_task_scores
+
+        overall_performance = np.mean(runs_to_task_scores, axis=1)
+        overall_std = np.sqrt(np.sum((overall_performance - population_performance_dict[model_name]) ** 2)  / len(overall_performance))
+        print(f"{model_name} - Optimal allocation (B={total_num_responses}) std: {np.std(overall_performance)}")
+
+    print()
+
+    # === compute performance with uniform allocation per model === #
+    allocation = [int(total_num_responses / len(task_id_list))] * len(task_id_list)
+    for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
+        runs_to_task_scores = np.zeros((4096, len(task_id_list)))
+        for run_idx in range(4096):
+            for task_idx, task_id in enumerate(task_id_list):
+                allocation_for_this_task = allocation[task_idx]
+                sampled_scores = [random.choice(task_id_to_scores[task_id]) for _ in range(allocation_for_this_task)]
+
+                average_task_scores = np.mean(sampled_scores, axis=0)
+                runs_to_task_scores[run_idx, task_idx] = average_task_scores
+
+        overall_performance = np.mean(runs_to_task_scores, axis=1)
+        overall_std = np.sqrt(np.sum((overall_performance - population_performance_dict[model_name]) ** 2)  / len(overall_performance))
+        print(f"{model_name} - Uniform allocation (B={total_num_responses}) std: {np.std(overall_performance)}")
+
+    print()
+
+    # === compute performance with uniform allocation per model === #
+    allocation = [int(total_num_responses / len(task_id_list))] * len(task_id_list)
+    for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
+        runs_to_task_scores = np.zeros((4096, len(task_id_list)))
+        for run_idx in range(4096):
+            for task_idx, task_id in enumerate(task_id_list):
+                allocation_for_this_task = allocation[task_idx]
+                sampled_scores = [random.choice(task_id_to_scores[task_id]) for _ in range(allocation_for_this_task)]
+
+                average_task_scores = np.median(sampled_scores, axis=0)
+                runs_to_task_scores[run_idx, task_idx] = average_task_scores
+
+        overall_performance = np.mean(runs_to_task_scores, axis=1)
+        overall_std = np.sqrt(np.sum((overall_performance - population_performance_dict[model_name]) ** 2)  / len(overall_performance))
+        print(f"{model_name} - Uniform median (B={total_num_responses}) std: {np.std(overall_performance)}")
+
+    print()
+
+    # === compute performance with uniform + heuristic min/max exclusion per model === #
+    allocation = [int(total_num_responses / len(task_id_list))] * len(task_id_list)
+    for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
+        runs_to_task_scores = np.zeros((4096, len(task_id_list)))
+        for run_idx in range(4096):
+            for task_idx, task_id in enumerate(task_id_list):
+                allocation_for_this_task = allocation[task_idx]
+                sampled_scores = [random.choice(task_id_to_scores[task_id]) for _ in range(allocation_for_this_task)]
+
+                if min_max_removed := [s for s in sampled_scores if min(sampled_scores) < s < max(sampled_scores)]:
+                    sampled_scores = min_max_removed
+
+                average_task_scores = np.mean(sampled_scores, axis=0)
+                runs_to_task_scores[run_idx, task_idx] = average_task_scores
+
+        overall_performance = np.mean(runs_to_task_scores, axis=1)
+        overall_std = np.sqrt(np.sum((overall_performance - population_performance_dict[model_name]) ** 2)  / len(overall_performance))
+        print(f"{model_name} - Uniform + min / max exclusion (B={total_num_responses}) std: {np.std(overall_performance)}")
+
+
+    # === compute std with brute-force independent runs as estimation === #
+    for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
+        runs_to_task_scores = np.zeros((16, len(task_id_list)))  # (16, 40)
+        for task_idx, task_id in enumerate(task_id_list):
+            runs_to_task_scores[:, task_idx] = task_id_to_scores[task_id]
+
+        overall_performance = np.mean(runs_to_task_scores, axis=1)  # (16, 1)
+        overall_std = np.sqrt(np.sum((overall_performance - population_performance_dict[model_name]) ** 2)  / len(overall_performance))
+        print(f"{model_name} - Brute-force std: {overall_std}")
+
+    # # === analyze which rubric got more allocation and less === #
+    # allocation, min_var = get_optimal_num_response_allocation(task_var_list, total_num_responses=total_num_responses)
+    # task_id_to_allocation = {task_id: num_allocation for task_id, num_allocation in zip(task_id_list, allocation)}
+    # with jsonlines.open("./data/probench_first_40_public_last_40_private.jsonl") as f:
+    #     rubric_samples = list(f)
+    #     rubrics_dict = {}  # task_id: rubric sample
+    #     num_rubrics_dict = {}  # task_id: number of rubrics
+    #     for rubric_sample in rubric_samples:
+    #         rubrics_dict[int(rubric_sample['task_id'])] = rubric_sample
+    #         num_rubrics_dict[int(rubric_sample['task_id'])] = len(rubric_sample['rubrics']['rubric_json'])
 
     ipdb.set_trace()
     pass
