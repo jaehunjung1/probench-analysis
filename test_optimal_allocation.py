@@ -34,7 +34,7 @@ if __name__ == "__main__":
         "o4-mini_reasoning_medium": 0.582,
     }
 
-    total_num_responses = 40
+    total_num_responses = 160
 
     # === aggregate data === #
     # {model_name: {task_id: [score0, ..., score15], ...}, ...}
@@ -153,6 +153,8 @@ if __name__ == "__main__":
 
     # === compute performance with optimal allocation per model === #
     allocation, min_var = get_optimal_num_response_allocation(task_var_list, total_num_responses=total_num_responses)
+    task_id_allocation = {task_id: int(alloc) for task_id, alloc in zip(task_id_list, allocation)}
+    ipdb.set_trace()
     for model_name, task_id_to_scores in model_to_task_id_to_scores.items():
         runs_to_task_scores = np.zeros((4096, len(task_id_list)))
         for run_idx in range(4096):

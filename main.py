@@ -6,10 +6,142 @@ from typing import List
 import ipdb
 import jsonlines
 import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
 from tabulate import tabulate
+import seaborn as sns
 
-from zhilin import get_predicted_score_per_task_id_e2e, get_std_at_k, get_pass_at_k
-from modules.optimal_allocation import get_optimal_num_response_allocation
+from zhilin import get_predicted_score_per_task_id_e2e
+
+
+# def create_boxplot(task_score_list: List[List[int]], task_id_list, output_file="./images/boxplot.pdf"):
+#     """
+#     Create a box plot for 10 items, each with an empirical distribution of 16 floats,
+#     and save it as a PDF.
+#
+#     Parameters:
+#     - data: List of lists, where each inner list contains 16 floats for an item
+#     - item_names: List of 10 strings, names for each item
+#     - output_file: String, output PDF file name
+#     """
+#
+#     # Convert data to DataFrame for seaborn
+#     df = pd.DataFrame(task_score_list).T
+#     df.columns = task_id_list
+#
+#     # Set seaborn style
+#     sns.set_style("whitegrid")
+#
+#     # Create figure
+#     plt.figure(figsize=(6, 6))
+#
+#     # Create box plot
+#     sns.boxplot(data=df, orient="h")
+#
+#     # Customize plot
+#     # plt.title("", fontsize=14, pad=15)
+#     plt.xlabel("Score distribution", fontsize=10.5)
+#     plt.ylabel("Task ID", fontsize=10.5)
+#
+#     # Adjust layout to prevent label cutoff
+#     plt.tight_layout()
+#
+#     # Save as PDF
+#     plt.savefig(output_file, format='pdf', bbox_inches='tight')
+#     plt.close()
+
+
+# def create_boxplot(task_score_list: List[List[int]], task_id_list, output_file="./images/boxplot.pdf"):
+#     """
+#     Create a box plot for 10 items, each with an empirical distribution of 16 floats,
+#     and save it as a PDF.
+#
+#     Parameters:
+#     - data: List of lists, where each inner list contains 16 floats for an item
+#     - item_names: List of 10 strings, names for each item
+#     - output_file: String, output PDF file name
+#     """
+#
+#     # Convert data to DataFrame for seaborn
+#     df = pd.DataFrame(task_score_list).T
+#     df.columns = task_id_list
+#
+#     # Calculate means for each task and sort by mean
+#     means = df.mean().sort_values()
+#     sorted_columns = means.index
+#     df = df[sorted_columns]
+#
+#     # Set seaborn style
+#     sns.set_style("whitegrid")
+#
+#     # Create figure
+#     plt.figure(figsize=(16, 4))
+#
+#     # Create box plot
+#     sns.boxplot(data=df)
+#
+#     # Customize plot
+#     # plt.title("", fontsize=14, pad=15)
+#     plt.xlabel("Task ID", fontsize=12)
+#     plt.ylabel("Score distribution", fontsize=12)
+#
+#     # Adjust layout to prevent label cutoff
+#     plt.tight_layout()
+#
+#     # Save as PDF
+#     plt.savefig(output_file, format='pdf', bbox_inches='tight')
+#     plt.close()
+
+
+def create_boxplot(task_score_list: List[List[int]], task_id_list, task_allocation_dict, output_file="./images/boxplot.pdf"):
+    """
+    Create a box plot for 10 items, each with an empirical distribution of 16 floats,
+    sorted from low to high mean task, and save it as a PDF.
+
+    Parameters:
+    - task_score_list: List of lists, where each inner list contains 16 floats for an item
+    - task_id_list: List of 10 strings, names for each item
+    - output_file: String, output PDF file name
+    """
+    # Convert data to DataFrame for seaborn
+    df = pd.DataFrame(task_score_list).T
+    df.columns = [f"{task_id} ({task_allocation_dict[task_id]})" for task_id in task_id_list]
+
+    # Melt the DataFrame to long format
+    df_long = pd.melt(df, var_name='Task ID (# of responses in optimal allocation)', value_name='Score distribution')
+
+    # Calculate means and sort from low to high
+    mean_scores = df_long.groupby('Task ID (# of responses in optimal allocation)')['Score distribution'].mean().sort_values()
+    order = mean_scores.index.tolist()
+
+    # Set seaborn style
+    sns.set_style("whitegrid")
+
+    # Create figure
+    plt.figure(figsize=(16, 4))
+
+    # Create box plot with explicit order
+    sns.boxplot(data=df_long, x='Task ID (# of responses in optimal allocation)', y='Score distribution', order=order,
+                showfliers=True, color='lightblue')
+
+    # Customize plot
+    plt.xlabel("Task ID (# of responses in optimal allocation)", fontsize=12)
+    plt.ylabel("Score distribution", fontsize=12)
+
+    # xticks setting
+    # plt.grid(axis='x')
+    plt.gca().tick_params(axis='x', direction='out', bottom=True)
+    plt.xticks(rotation=45, fontsize=10)
+    # xtick_labels = plt.gca().get_xticklabels()
+    # for label in xtick_labels:
+    #     label.set_fontweight('bold')
+
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout()
+
+    # Save as PDF
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
+    plt.close()
 
 
 if __name__ == '__main__':
@@ -79,56 +211,13 @@ if __name__ == '__main__':
     task_id_list = sorted(list(total_task_id_to_scores.keys()))
     task_var_list = [float(np.var(total_task_id_to_scores[task_id])) for task_id in task_id_list]
 
-    # compute performance variance with brute-force independent runs as estimation
-    runs_to_task_scores = np.zeros((16, len(task_id_list)))  # (16, 40)
-    for task_idx, task_id in enumerate(task_id_list):
-        runs_to_task_scores[:, task_idx] = total_task_id_to_scores[task_id]
-    overall_performance = np.mean(runs_to_task_scores, axis=1)  # (16, 1)
-    print(f"Brute-force std: {np.std(overall_performance)}")
+    sampled_task_id_list = sorted(task_id_list, key=lambda x: np.mean(total_task_id_to_scores[x]))
+    sampled_task_score_list = [total_task_id_to_scores[task_id] for task_id in sampled_task_id_list]
+    task_allocation_dict = {
+        2545: 4, 2561: 3, 2571: 4, 2592: 5, 2594: 4, 2598: 4, 2605: 4, 2626: 4, 2631: 5, 2638: 3, 2639: 4, 2641: 5,
+        2649: 5, 2651: 5, 2664: 5, 2668: 4, 2677: 4, 2694: 5, 2698: 4, 2717: 4, 2721: 3, 2722: 3, 2728: 4, 2730: 4,
+        2735: 3, 2743: 4, 2744: 4, 2751: 4, 2761: 4, 2786: 3, 2787: 4, 2791: 4, 2828: 4, 2829: 4, 2844: 4, 2894: 4,
+        2900: 5, 2902: 4, 2915: 3, 2916: 3
+    }
 
-    # compute performance variance with uniform allocation
-    allocation = [4] * len(task_id_list)
-    runs_to_task_scores = np.zeros((1024, len(task_id_list)))  # (16, 40)
-    for run_idx in range(1024):
-        for task_idx, task_id in enumerate(task_id_list):
-            allocation_for_this_task = allocation[task_idx]
-            sampled_scores = random.sample(total_task_id_to_scores[task_id], allocation_for_this_task)
-            average_task_scores = np.mean(sampled_scores, axis=0)
-            runs_to_task_scores[run_idx, task_idx] = average_task_scores
-    overall_performance = np.mean(runs_to_task_scores, axis=1)  # (16, 1)
-    print(f"Uniform allocation std: {np.std(overall_performance)}")
-
-    # compute performance variance with optimal allocation
-    allocation, min_var = get_optimal_num_response_allocation(task_var_list, total_num_responses=160)
-    runs_to_task_scores = np.zeros((4096, len(task_id_list)))
-    for run_idx in range(4096):
-        for task_idx, task_id in enumerate(task_id_list):
-            allocation_for_this_task = allocation[task_idx]
-            sampled_scores = random.sample(total_task_id_to_scores[task_id], allocation_for_this_task)
-            average_task_scores = np.mean(sampled_scores, axis=0)
-            runs_to_task_scores[run_idx, task_idx] = average_task_scores
-    overall_performance = np.mean(runs_to_task_scores, axis=1)
-    print(f"Optimal allocation std: {np.std(overall_performance)}")
-
-    # compute performance variance with optimal allocation + outlier exclusion
-    allocation, min_var = get_optimal_num_response_allocation(task_var_list, total_num_responses=160)
-    runs_to_task_scores = np.zeros((4096, len(task_id_list)))
-    for run_idx in range(4096):
-        for task_idx, task_id in enumerate(task_id_list):
-            allocation_for_this_task = allocation[task_idx]
-            sampled_scores = random.sample(total_task_id_to_scores[task_id], allocation_for_this_task)
-
-            # exclude min / max
-            min_score, max_score = min(sampled_scores), max(sampled_scores)
-            if len([s for s in sampled_scores if min_score < s < max_score]) > 0:
-                sampled_scores = [s for s in sampled_scores if min_score < s < max_score]
-            average_task_scores = np.mean(sampled_scores, axis=0)
-            runs_to_task_scores[run_idx, task_idx] = average_task_scores
-    overall_performance = np.mean(runs_to_task_scores, axis=1)  # (16, 1)
-    print(f"Optimal allocation + Outlier exclusion std: {np.std(overall_performance)}")
-
-
-
-
-    ipdb.set_trace()
-    pass
+    create_boxplot(sampled_task_score_list, sampled_task_id_list, task_allocation_dict, output_file="./images/boxplot.pdf")
