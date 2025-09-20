@@ -17,15 +17,15 @@ if __name__ == "__main__":
         "gemini-2.5-flash_reasoning_True": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
                                                 "gemini-2.5-flash_reasoning_True_files_1_web_0_seed_16_model_"
                                                 "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
-        # "gemini-2.5-pro_reasoning_True": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
-        #                                       "gemini-2.5-pro_reasoning_True_files_1_web_0_seed_16_model_"
-        #                                       "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
-        # "o3_reasoning_medium": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
-        #                             "o3_reasoning_medium_files_1_web_0_seed_16_model_"
-        #                             "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
-        # "o4-mini_reasoning_medium": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
-        #                                  "o4-mini_reasoning_medium_files_1_web_0_seed_16_model_"
-        #                                  "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
+        "gemini-2.5-pro_reasoning_True": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
+                                              "gemini-2.5-pro_reasoning_True_files_1_web_0_seed_16_model_"
+                                              "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
+        "o3_reasoning_medium": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
+                                    "o3_reasoning_medium_files_1_web_0_seed_16_model_"
+                                    "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
+        "o4-mini_reasoning_medium": Path("data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_"
+                                         "o4-mini_reasoning_medium_files_1_web_0_seed_16_model_"
+                                         "nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"),
     }
     population_performance_dict = {
         "gemini-2.5-flash_reasoning_True": 0.576,
