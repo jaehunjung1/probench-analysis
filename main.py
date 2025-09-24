@@ -180,22 +180,23 @@ def create_boxplot_with_bar(task_score_list: List[List[int]], task_id_list, task
 
     # Create bar plot with explicit x positions
     x_positions = range(len(order))
-    bars = ax_bar.bar(x_positions, allocations, color='lightblue', edgecolor='gray')
-    ax_bar.set_ylabel("Optimal\nallocation", fontsize=11)
+    bars = ax_bar.bar(x_positions, allocations, color='orangered', edgecolor='gray')
+    ax_bar.set_ylabel("Optimal\nallocation", fontsize=15)
     ax_bar.set_xticks(x_positions)
     ax_bar.set_xticklabels(names, rotation=45, ha='right')
     # ax_bar.set_xticklabels(order, rotation=45, ha='right')
-    ax_bar.tick_params(axis='y', labelsize=10)
-    ax_bar.set_ylim(0, 6)
+    ax_bar.tick_params(axis='y', labelsize=14)
+    ax_bar.set_ylim(2.5, 5)
 
     # Create box plot
     sns.boxplot(data=df_long, x='Task ID', y='Score distribution', order=order,
-                showfliers=True, color='lightblue', ax=ax_box)
+                showfliers=False, color='deepskyblue', ax=ax_box, whis=[0, 100])
 
     # Customize box plot
-    ax_box.set_xlabel("Task ID", fontsize=12)
-    ax_box.set_ylabel("Score distribution", fontsize=12)
-    ax_box.tick_params(axis='x', rotation=45, labelsize=10, direction='out', bottom=True)
+    ax_box.set_xlabel("Task ID", fontsize=15)
+    ax_box.set_ylabel("Score distribution", fontsize=15)
+    ax_box.tick_params(axis='x', rotation=45, labelsize=14, direction='out', bottom=True)
+    ax_box.tick_params(axis='y', labelsize=14)
 
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
@@ -205,14 +206,14 @@ def create_boxplot_with_bar(task_score_list: List[List[int]], task_id_list, task
     plt.close()
 
 if __name__ == '__main__':
-    # filename = "data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_gemini-2.5-flash_reasoning_True_files_1_web_0_seed_16_model_nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"
-    # image_name = "./images/task-score-distribution.pdf"
+    filename = "data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_gemini-2.5-flash_reasoning_True_files_1_web_0_seed_16_model_nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"
+    image_name = "./images/task-score-distribution.pdf"
     # filename = "data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_gemini-2.5-pro_reasoning_True_files_1_web_0_seed_16_model_nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"
     # image_name = "./images/task-score-distribution-gemini-pro.pdf"
     # filename = "data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_o3_reasoning_medium_files_1_web_0_seed_16_model_nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"
     # image_name = "./images/task-score-distribution-o3.pdf"
-    filename = "data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_o4-mini_reasoning_medium_files_1_web_0_seed_16_model_nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"
-    image_name = "./images/task-score-distribution-o4-mini.pdf"
+    # filename = "data/standard_format_30_Aug_cleaned_w_filepath_filtered_infer_o4-mini_reasoning_medium_files_1_web_0_seed_16_model_nvdev_openai_gpt-oss-120b_reasoning_True.jsonl"
+    # image_name = "./images/task-score-distribution-o4-mini.pdf"
 
     K_list = [1, 2, 4, 8, 16]
 
@@ -225,7 +226,6 @@ if __name__ == '__main__':
         'Chemistry PhD': [],
         'Investment Services': [],
         'Consulting': [],
-        'Overall': [],
         'Extraction (recall)': [],
         'Reasoning': [],
         'Style': [],
